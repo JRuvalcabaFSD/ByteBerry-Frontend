@@ -31,21 +31,20 @@ export default tseslint.config(
           semi: true,
           trailingComma: 'es5',
           singleQuote: true,
-          printWidth: 80,
+          printWidth: 180,
           tabWidth: 2,
           useTabs: false,
-          arrowParens: 'always',
+          arrowParens: 'avoid',
           endOfLine: 'lf',
         },
       ],
 
       // Reglas personalizadas
-      'no-console': ['warn', { allow: ['warn', 'error'] }], // console.log → warning, warn/error permitidos
+      'no-console': ['warn', { allow: ['warn', 'error'] }], // console.log → warning
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-explicit-any': 'warn',
     },
-  },
-  prettierConfig
+  }
 );
