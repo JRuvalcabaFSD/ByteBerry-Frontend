@@ -28,12 +28,15 @@ import { TOKENS } from '../../container';
  * ```
  */
 
-export function useHealthStatus(autoFetch = true, refreshInterval = 0): IUseHealthStatusResult {
+export function useHealthStatus(autofetch = true, refreshInterval = 0): IUseHealthStatusResult {
   const container = useContainer();
   const [data, setData] = useState<IHealthResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(autoFetch);
+  const [loading, setLoading] = useState<boolean>(autofetch);
   const [error, setError] = useState<Error | null>(null);
 
+  /**
+   * Fetches health status from BFF
+   */
   const fetchHealth = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -42,13 +45,21 @@ export function useHealthStatus(autoFetch = true, refreshInterval = 0): IUseHeal
       const useCase = container.resolve<IGetHealthUseCase>(TOKENS.GetHealthUseCase);
       const response = await useCase.execute();
       setData(response);
-    } catch (error) {
-      setError(error instanceof Error ? error : new Error('Unknown error'));
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Unknown error'));
     } finally {
       setLoading(false);
     }
   }, [container]);
 
+  // Initial fetch on mount
+  useEffect(() => {
+    if (autofetch) {
+      fetchHealth();
+    }
+  }, [autofetch, fetchHealth]);
+
+  // Auto-refresh interval
   useEffect(() => {
     if (refreshInterval > 0) {
       const intervalId = setInterval(() => {
@@ -59,5 +70,10 @@ export function useHealthStatus(autoFetch = true, refreshInterval = 0): IUseHeal
     }
   }, [refreshInterval, fetchHealth]);
 
-  return { data, loading, error, refetch: fetchHealth };
+  return {
+    data,
+    loading,
+    error,
+    refetch: fetchHealth,
+  };
 }

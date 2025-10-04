@@ -13,7 +13,7 @@ export interface IHealthResponse {
   service: string;
   version: string;
   timestamp: string;
-  uptime?: string;
+  uptime?: number;
 }
 
 /**
