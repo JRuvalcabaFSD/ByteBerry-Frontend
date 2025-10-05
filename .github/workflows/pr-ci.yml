@@ -1,39 +1,43 @@
-name: 🔍 PR-CI - ByteBerry Frontend
+name: 🚀 Release-CI - ByteBerry Frontend
 
 on:
-  pull_request:
-    branches: [develop, main]
-    types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'src/**'
-      - 'test/**'
-      - 'public/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'tsconfig*.json'
-      - 'vitest.config.ts'
-      - 'vite.config.ts'
-      - 'eslint.config.mjs'
-      - 'Dockerfile'
-      - '.github/workflows/**'
+  push:
+    branches: [main]
 
 concurrency:
-  group: pr-ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: release-ci
+  cancel-in-progress: false
 
 env:
   NODE_VERSION: '22.18.0'
   PNPM_VERSION: '10.17.1'
+  REGISTRY: docker.io
+  IMAGE_NAME: jruvalcabafsd/byteberry-frontend
+  # Default BFF URL para CI/CD (sobrescribible con secrets)
+  VITE_BFF_URL: ${{ secrets.VITE_BFF_URL || 'http://localhost:4002' }}
+
+permissions:
+  contents: write
+  packages: write
+  issues: write
+  pull-requests: write
 
 jobs:
-  setup:
-    name: 📦 Setup & Dependencies
+  setup-and-validate:
+    name: 📦 Setup & Validation
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
+
+    outputs:
+      should-release: ${{ steps.check.outputs.should-release }}
+      current-version: ${{ steps.version.outputs.current-version }}
 
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 📦 Setup pnpm
         uses: pnpm/action-setup@v4
@@ -55,528 +59,396 @@ jobs:
           path: node_modules
           key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
-  quality:
-    name: 🔍 Code Quality
-    runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 5
-
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-
-      - name: 📦 Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: 🔧 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 💾 Restore node_modules
-        uses: actions/cache/restore@v3
-        with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - name: 🔍 Run ESLint
-        run: pnpm lint
-
-      - name: 🔍 Check TypeScript types
-        run: pnpm type-check
-
-      - name: 📊 Generate lint report
-        if: always()
+      - name: 🔍 Run full validation
+        env:
+          NODE_ENV: test
+          CI: true
+          VITE_BFF_URL: ${{ env.VITE_BFF_URL }}
         run: |
-          echo "📊 ESLint Summary:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          pnpm lint 2>&1 | head -20 >> $GITHUB_STEP_SUMMARY || true
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-
-  build:
-    name: 🗂️ Build
-    runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 5
-
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-
-      - name: 📦 Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: 🔧 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 💾 Restore node_modules
-        uses: actions/cache/restore@v3
-        with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - name: 🗂️ Build with Vite
-        run: |
-          export VITE_BFF_URL=${{ secrets.VITE_BFF_URL_CI || 'http://localhost:4002' }}
-          export VITE_NODE_ENV=production
-
-          echo "🔧 Environment variables:"
-          echo "VITE_BFF_URL=$VITE_BFF_URL"
-          echo "VITE_NODE_ENV=$VITE_NODE_ENV"
-          echo ""
-
-          echo "📦 Starting build..."
+          echo "Using BFF URL: $VITE_BFF_URL"
+          pnpm type-check
+          pnpm lint
+          pnpm audit
           pnpm build
-
-          echo ""
-          echo "✅ Build completed"
-
-      - name: 🔍 Debug - Show directory structure
-        if: always()
-        run: |
-          echo "📁 Current directory:"
-          pwd
-          echo ""
-          echo "📂 Root directory contents:"
-          ls -la
-          echo ""
-          echo "📦 Checking for dist directory..."
-          if [ -d "dist" ]; then
-            echo "✅ dist/ exists"
-            echo ""
-            echo "📁 dist/ contents:"
-            ls -la dist/
-            echo ""
-            echo "📄 All files in dist/ (recursive):"
-            find dist/ -type f 2>/dev/null | head -30
-            echo ""
-            echo "📁 All directories in dist/:"
-            find dist/ -type d 2>/dev/null
-          else
-            echo "❌ dist/ does NOT exist!"
-            echo ""
-            echo "🔍 Searching for any build output..."
-            find . -name "index.html" -o -name "*.js" -o -name "*.css" 2>/dev/null | grep -v node_modules | head -20
-          fi
-
-      - name: 📊 Verify build output
-        run: |
-          echo "🔍 Verifying build artifacts..."
-
-          # Verificar que dist/ existe
-          if [ ! -d "dist" ]; then
-            echo "❌ ERROR: dist/ directory does not exist!"
-            echo ""
-            echo "📁 Current directory contents:"
-            ls -la
-            echo ""
-            echo "🔍 Searching for build output..."
-            find . -maxdepth 2 -type d | grep -v node_modules
-            exit 1
-          fi
-          echo "✅ dist/ directory exists"
-          echo ""
-
-          # Mostrar contenido de dist/
-          echo "📁 dist/ directory contents:"
-          ls -la dist/
-          echo ""
-
-          # Verificar index.html
-          if [ ! -f "dist/index.html" ]; then
-            echo "❌ ERROR: dist/index.html not found!"
-            echo ""
-            echo "📄 Files in dist/:"
-            find dist/ -type f 2>/dev/null || echo "No files found"
-            exit 1
-          fi
-          echo "✅ index.html exists"
-
-          # Verificar assets/ (warning, no error)
-          if [ ! -d "dist/assets" ]; then
-            echo "⚠️  WARNING: dist/assets/ directory not found"
-            echo ""
-            echo "📁 Directories in dist/:"
-            find dist/ -type d 2>/dev/null || echo "No directories found"
-            echo ""
-            echo "ℹ️  This might be OK if Vite is using a different structure"
-          else
-            echo "✅ assets/ directory exists"
-            echo ""
-            echo "📄 Sample files in assets/:"
-            find dist/assets -type f 2>/dev/null | head -10
-          fi
-
-          echo ""
-          echo "📦 Total build size:"
-          du -sh dist/
-          echo ""
-
-          echo "📊 Build summary:"
-          echo "- HTML files: $(find dist/ -name "*.html" 2>/dev/null | wc -l)"
-          echo "- JS files: $(find dist/ -name "*.js" 2>/dev/null | wc -l)"
-          echo "- CSS files: $(find dist/ -name "*.css" 2>/dev/null | wc -l)"
-          echo "- Other files: $(find dist/ -type f ! -name "*.html" ! -name "*.js" ! -name "*.css" 2>/dev/null | wc -l)"
+          pnpm test:coverage
 
       - name: 📦 Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts-${{ github.sha }}
+          name: build-artifacts-release
           path: dist/
-          retention-days: 7
-          if-no-files-found: error
+          retention-days: 1
 
-  test:
-    name: 🧪 Tests
+      - name: 📋 Get current version
+        id: version
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "current-version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $CURRENT_VERSION"
+
+      - name: 🔍 Check if should release
+        id: check
+        run: |
+          COMMITS=$(git log --format="%s" HEAD~1..HEAD)
+          if echo "$COMMITS" | grep -E "^(feat|fix|perf|refactor|revert)(\(.+\))?!?:"; then
+            echo "should-release=true" >> $GITHUB_OUTPUT
+            echo "Found releasable commits"
+          else
+            echo "should-release=false" >> $GITHUB_OUTPUT
+            echo "No releasable commits found"
+          fi
+
+  release:
+    name: 📦 Semantic Release
     runs-on: ubuntu-latest
-    needs: [setup, build]
+    needs: setup-and-validate
+    if: needs.setup-and-validate.outputs.should-release == 'true'
+    timeout-minutes: 10
+
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+      version: ${{ steps.release.outputs.version }}
+      major: ${{ steps.release.outputs.major }}
+      minor: ${{ steps.release.outputs.minor }}
+      patch: ${{ steps.release.outputs.patch }}
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 💾 Restore node_modules
+        uses: actions/cache/restore@v3
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: 📥 Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts-release
+          path: dist/
+
+      - name: 🏷️ Run semantic release
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pnpm release --debug > release-output.log 2>&1 || RELEASE_EXIT_CODE=$?
+
+          if grep -q "Published release" release-output.log; then
+            echo "released=true" >> $GITHUB_OUTPUT
+
+            NEW_VERSION=$(node -p "require('./package.json').version")
+            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+            IFS='.' read -r major minor patch <<< "$NEW_VERSION"
+            echo "major=$major" >> $GITHUB_OUTPUT
+            echo "minor=$minor" >> $GITHUB_OUTPUT
+            echo "patch=$patch" >> $GITHUB_OUTPUT
+
+            echo "✅ Release created: v$NEW_VERSION"
+          else
+            echo "released=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No release was created"
+
+            CURRENT_VERSION=$(node -p "require('./package.json').version")
+            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          fi
+
+          echo "📋 Release Log:"
+          cat release-output.log
+
+      - name: 📊 Upload release artifacts
+        if: steps.release.outputs.released == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts-${{ steps.release.outputs.version }}
+          path: |
+            dist/
+            package.json
+            CHANGELOG.md
+          retention-days: 90
+
+  docker:
+    name: 🐳 Docker Multi-arch
+    runs-on: ubuntu-latest
+    needs: [setup-and-validate, release]
+    if: needs.setup-and-validate.outputs.should-release == 'true' && needs.release.result == 'success'
+    timeout-minutes: 30
+
+    steps:
+      - name: 📥 Checkout code AFTER semantic-release
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Set version variables
+        id: vars
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "Using CURRENT version from package.json: $VERSION"
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "image-tag=${{ env.IMAGE_NAME }}:$VERSION" >> $GITHUB_OUTPUT
+          echo "image-latest=${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
+
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      - name: 🔐 Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: 📋 Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}},value=${{ steps.vars.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.vars.outputs.version }}
+            type=semver,pattern={{major}},value=${{ steps.vars.outputs.version }}
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.description=ByteBerry Frontend - React + Vite
+            org.opencontainers.image.vendor=JRuvalcabaFSD
+            org.opencontainers.image.version=${{ steps.vars.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: 🏗️ Build and push multi-arch image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.vars.outputs.version }}
+            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            COMMIT_SHA=${{ github.sha }}
+            VITE_BFF_URL=${{ env.VITE_BFF_URL }}
+
+      - name: 🧪 Test multi-arch images
+        run: |
+          echo "🧪 Testing published images..."
+
+          echo "Testing AMD64 image..."
+          docker run --rm --platform linux/amd64 \
+            -p 8080:80 -d --name frontend-test-amd64 \
+            ${{ steps.vars.outputs.image-tag }}
+
+          sleep 5
+
+          docker exec frontend-test-amd64 nginx -t && echo "✅ AMD64 Nginx config valid"
+          docker stop frontend-test-amd64
+
+          echo "Testing ARM64 image availability..."
+          docker manifest inspect ${{ steps.vars.outputs.image-tag }} | grep "arm64" && echo "✅ ARM64 image available"
+
+      - name: 📊 Image summary
+        run: |
+          echo "## 🐳 Docker Images Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | Platforms | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|-----------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| \`${{ steps.vars.outputs.version }}\` | linux/amd64, linux/arm64 | Multi-arch |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`latest\` | linux/amd64, linux/arm64 | Multi-arch |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Pull Commands:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "# Latest version" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ steps.vars.outputs.image-tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Always latest" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ steps.vars.outputs.image-latest }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Raspberry Pi 5 (ARM64)" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull --platform linux/arm64 ${{ steps.vars.outputs.image-tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  sync-develop:
+    name: 🔄 Sync develop branch
+    runs-on: ubuntu-latest
+    needs: [setup-and-validate, release, docker]
+    if: |
+      always() &&
+      needs.setup-and-validate.outputs.should-release == 'true' &&
+      needs.release.result == 'success' &&
+      (needs.docker.result == 'success' || needs.docker.result == 'skipped')
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout main branch (post-release)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🔧 Config git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: 📡 Fetch all branches
+        run: git fetch origin --prune
+
+      - name: 🔍 Check sync status
+        id: check
+        run: |
+          MAIN_COMMIT=$(git rev-parse origin/main)
+          DEVELOP_COMMIT=$(git rev-parse origin/develop)
+
+          if [ "$MAIN_COMMIT" != "$DEVELOP_COMMIT" ]; then
+            if git merge-base --is-ancestor origin/develop origin/main; then
+              echo "sync-needed=true" >> $GITHUB_OUTPUT
+              COMMITS_AHEAD=$(git rev-list --count origin/develop..origin/main)
+              echo "commits-ahead=$COMMITS_AHEAD" >> $GITHUB_OUTPUT
+            else
+              echo "sync-needed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "sync-needed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 🔄 Sync develop with release changes
+        if: steps.check.outputs.sync-needed == 'true'
+        run: |
+          RELEASE_VERSION="${{ needs.release.outputs.version }}"
+          if [ -z "$RELEASE_VERSION" ]; then
+            RELEASE_VERSION=$(node -p "require('./package.json').version")
+          fi
+
+          git checkout develop
+          git pull origin develop || echo "Develop fetched"
+
+          if git merge-base --is-ancestor origin/develop origin/main; then
+            git merge --ff-only origin/main
+          else
+            git merge --no-ff origin/main -m "chore: sync develop with release v${RELEASE_VERSION}
+
+          Auto-sync after successful Release-CI completion.
+
+          Release info:
+          - Version: ${RELEASE_VERSION}
+          - Docker: jruvalcabafsd/byteberry-frontend:${RELEASE_VERSION}
+          - Trigger: merge to main"
+          fi
+
+          git push origin develop
+          echo "✅ Develop synced with release v${RELEASE_VERSION}"
+
+      - name: 📊 Sync summary
+        run: |
+          if [ "${{ steps.check.outputs.sync-needed }}" == "true" ]; then
+            RELEASE_VERSION="${{ needs.release.outputs.version }}"
+            if [ -z "$RELEASE_VERSION" ]; then
+              RELEASE_VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "unknown")
+            fi
+
+            echo "## 🔄 Post-Release Sync Completed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+            echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| 📦 Release Version | \`${RELEASE_VERSION}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔄 Commits Synced | ${{ steps.check.outputs.commits-ahead }} |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🎯 Target Branch | develop |" >> $GITHUB_STEP_SUMMARY
+            echo "| ✅ Status | Synchronized |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ✅ No Sync Required" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Branches are already synchronized or sync not possible." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  post-release:
+    name: 📋 Post-Release
+    runs-on: ubuntu-latest
+    needs: [setup-and-validate, release, docker, sync-develop]
+    if: needs.release.outputs.released == 'true' && needs.docker.result == 'success'
     timeout-minutes: 10
 
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
-
-      - name: 📦 Setup pnpm
-        uses: pnpm/action-setup@v4
         with:
-          version: ${{ env.PNPM_VERSION }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🔧 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 💾 Restore node_modules
-        uses: actions/cache/restore@v3
-        with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - name: 🧪 Run tests with coverage
+      - name: 📊 Release summary
         run: |
-          export VITE_BFF_URL=http://localhost:4002
-          export VITE_NODE_ENV=test
-          export CI=true
-          pnpm test:coverage
-
-      - name: 📊 Display coverage summary
-        run: |
-          echo "📊 Test Coverage Report:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          if [ -f "coverage/coverage-summary.json" ]; then
-            cat coverage/coverage-summary.json | jq -r '
-              .total |
-              "Lines: " + (.lines.pct|tostring) + "%\n" +
-              "Functions: " + (.functions.pct|tostring) + "%\n" +
-              "Branches: " + (.branches.pct|tostring) + "%\n" +
-              "Statements: " + (.statements.pct|tostring) + "%"
-            ' >> $GITHUB_STEP_SUMMARY
-          else
-            echo "Coverage summary not available" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-
-      - name: 📈 Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        if: success()
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage/lcov.info
-          flags: unittests
-          name: frontend-service
-          fail_ci_if_error: false
-
-      - name: 📊 Upload test artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-${{ github.sha }}
-          path: coverage/
-          retention-days: 7
-
-  security:
-    name: 🔒 Security Audit
-    runs-on: ubuntu-latest
-    needs: setup
-    timeout-minutes: 5
-
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-
-      - name: 📦 Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: 🔧 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: 💾 Restore node_modules
-        uses: actions/cache/restore@v3
-        with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - name: 🔍 Run security audit
-        run: |
-          echo "🔍 Running pnpm audit..."
-          pnpm audit --audit-level moderate --json > audit-results.json || AUDIT_EXIT_CODE=$?
-
-          echo "📊 Security Audit Results:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY
-
-          if [ -s audit-results.json ]; then
-            echo "Audit completed. Checking results..." >> $GITHUB_STEP_SUMMARY
-
-            VULN_COUNT=$(cat audit-results.json | jq -r '.metadata.vulnerabilities.total // 0' 2>/dev/null || echo "0")
-            echo "Total vulnerabilities found: $VULN_COUNT" >> $GITHUB_STEP_SUMMARY
-
-            if [ "$VULN_COUNT" != "0" ] && [ "$VULN_COUNT" != "null" ]; then
-              echo "⚠️ Vulnerabilities detected" >> $GITHUB_STEP_SUMMARY
-              cat audit-results.json | jq '.metadata.vulnerabilities' 2>/dev/null >> $GITHUB_STEP_SUMMARY || echo "Details not available" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "✅ No vulnerabilities found" >> $GITHUB_STEP_SUMMARY
-            fi
-          else
-            echo "✅ No audit issues detected" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-
-          if [ "${AUDIT_EXIT_CODE:-0}" -ne 0 ]; then
-            echo "❌ Audit failed with critical vulnerabilities"
-            exit $AUDIT_EXIT_CODE
-          fi
-
-      - name: 📊 Upload audit results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-audit-${{ github.sha }}
-          path: audit-results.json
-          retention-days: 30
-
-  docker:
-    name: 🐳 Docker Build
-    runs-on: ubuntu-latest
-    needs: [build, test]
-    timeout-minutes: 15
-    if: ${{ !github.event.pull_request.draft }}
-
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-
-      - name: 🐳 Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: 📥 Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: build-artifacts-${{ github.sha }}
-          path: dist/
-
-      - name: 🔍 Verify downloaded artifacts
-        run: |
-          echo "🔍 Verifying downloaded build artifacts..."
-          echo ""
-          echo "📁 Current directory:"
-          pwd
-          ls -la
-          echo ""
-          echo "📦 dist/ contents:"
-          ls -la dist/
-          echo ""
-          echo "📄 Files in dist/:"
-          find dist/ -type f | head -20
-
-      - name: 🗂️ Build Docker image
-        run: |
-          echo "🗂️ Building Docker image for PR verification..."
-          docker build \
-            --build-arg VITE_BFF_URL=${{ secrets.VITE_BFF_URL_CI || 'http://localhost:4002' }} \
-            --build-arg VITE_NODE_ENV=production \
-            --progress=plain \
-            -t byteberry-frontend:pr-${{ github.event.pull_request.number }} .
-
-      - name: 🧪 Test Docker image
-        run: |
-          echo "🧪 Testing Docker image..."
-
-          docker run -d --name test-frontend-pr \
-            -p 4003:80 \
-            byteberry-frontend:pr-${{ github.event.pull_request.number }}
-
-          echo "⏳ Waiting for Nginx to start..."
-          sleep 15
-
-          echo ""
-          echo "📋 Container logs (last 20 lines):"
-          docker logs --tail 20 test-frontend-pr
-
-          echo ""
-          echo "📁 Verifying files inside container:"
-          docker exec test-frontend-pr ls -la /usr/share/nginx/html
-
-          echo ""
-          echo "🔍 Testing Nginx configuration first..."
-          if docker exec test-frontend-pr nginx -t 2>&1 | grep -q "successful"; then
-            echo "✅ Nginx configuration is valid"
-          else
-            echo "❌ Nginx configuration has errors:"
-            docker exec test-frontend-pr nginx -t
-            docker stop test-frontend-pr
-            docker rm test-frontend-pr
-            exit 1
-          fi
-
-          echo ""
-          echo "🔍 Checking index.html content and permissions..."
-          echo "File info:"
-          docker exec test-frontend-pr ls -lh /usr/share/nginx/html/index.html
-          echo ""
-          echo "First 200 characters of index.html:"
-          docker exec test-frontend-pr head -c 200 /usr/share/nginx/html/index.html
-          echo ""
-          echo "File size:"
-          INDEX_SIZE=$(docker exec test-frontend-pr stat -c %s /usr/share/nginx/html/index.html)
-          echo "$INDEX_SIZE bytes"
-
-          if [ "$INDEX_SIZE" -lt 100 ]; then
-            echo "❌ ERROR: index.html is too small ($INDEX_SIZE bytes)"
-            echo "Full content:"
-            docker exec test-frontend-pr cat /usr/share/nginx/html/index.html
-            docker stop test-frontend-pr
-            docker rm test-frontend-pr
-            exit 1
-          fi
-          echo "✅ index.html size OK ($INDEX_SIZE bytes)"
-
-          echo ""
-          echo "🔍 Testing HTTP GET request (not HEAD)..."
-          # ✅ CRÍTICO: Usar GET explícitamente y guardar respuesta
-          HTTP_RESPONSE=$(docker exec test-frontend-pr wget -q -O - http://localhost:80/ 2>&1 | head -c 500)
-          RESPONSE_LENGTH=${#HTTP_RESPONSE}
-
-          echo "Response length: $RESPONSE_LENGTH characters"
-          echo "First 200 chars of response:"
-          echo "$HTTP_RESPONSE" | head -c 200
-          echo ""
-
-          if [ "$RESPONSE_LENGTH" -gt 100 ]; then
-            echo "✅ HTTP GET returned content ($RESPONSE_LENGTH chars)"
-          else
-            echo "❌ HTTP GET returned empty or very small response"
-            echo "Full response:"
-            echo "$HTTP_RESPONSE"
-            echo ""
-            echo "Checking Nginx error logs:"
-            docker exec test-frontend-pr cat /var/log/nginx/error.log 2>/dev/null || echo "No error log"
-            echo ""
-            echo "Checking Nginx access logs:"
-            docker exec test-frontend-pr tail -20 /var/log/nginx/access.log 2>/dev/null || echo "No access log"
-            docker stop test-frontend-pr
-            docker rm test-frontend-pr
-            exit 1
-          fi
-
-          echo ""
-          echo "🔍 Verifying HTML content..."
-          if echo "$HTTP_RESPONSE" | grep -q "<html"; then
-            echo "✅ Response contains HTML"
-          else
-            echo "❌ Response does not contain HTML tag"
-            echo "Response:"
-            echo "$HTTP_RESPONSE"
-            docker stop test-frontend-pr
-            docker rm test-frontend-pr
-            exit 1
-          fi
-
-          echo ""
-          echo "🔍 Testing assets directory..."
-          ASSETS_COUNT=$(docker exec test-frontend-pr find /usr/share/nginx/html/assets -type f 2>/dev/null | wc -l)
-          echo "Assets files count: $ASSETS_COUNT"
-
-          if [ "$ASSETS_COUNT" -gt 0 ]; then
-            echo "✅ Assets directory contains $ASSETS_COUNT files"
-            echo "Sample assets:"
-            docker exec test-frontend-pr ls -lh /usr/share/nginx/html/assets/ | head -5
-          else
-            echo "⚠️  Warning: No files in assets/ directory"
-          fi
-
-          echo ""
-          echo "🔍 Checking Nginx server configuration..."
-          echo "Active Nginx config:"
-          docker exec test-frontend-pr cat /etc/nginx/nginx.conf | head -30
-
-          echo ""
-          echo "🧹 Cleaning up..."
-          docker stop test-frontend-pr
-          docker rm test-frontend-pr
-
-          echo ""
-          echo "✅ All critical Docker tests passed!"
-
-      - name: 🗑️ Clean up Docker images
-        if: always()
-        run: |
-          docker rmi byteberry-frontend:pr-${{ github.event.pull_request.number }} || true
-          docker system prune -f || true
-
-  summary:
-    name: 📋 PR Summary
-    runs-on: ubuntu-latest
-    needs: [quality, build, test, security, docker]
-    if: always()
-
-    steps:
-      - name: 📊 Generate PR summary
-        run: |
-          echo "# 🔍 PR-CI Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          echo "# 🚀 Release Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Check | Status | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔍 Code Quality | ${{ needs.quality.result == 'success' && '✅' || '❌' }} | ${{ needs.quality.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🗂️ Build | ${{ needs.build.result == 'success' && '✅' || '❌' }} | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🧪 Tests | ${{ needs.test.result == 'success' && '✅' || '❌' }} | ${{ needs.test.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔒 Security | ${{ needs.security.result == 'success' && '✅' || '❌' }} | ${{ needs.security.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🐳 Docker | ${{ needs.docker.result == 'success' && '✅' || needs.docker.result == 'skipped' && '⭐️' || '❌' }} | ${{ needs.docker.result }} |" >> $GITHUB_STEP_SUMMARY
-
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 Version | \`v${{ needs.release.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏷️ Git Tag | [\`v${{ needs.release.outputs.version }}\`](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.release.outputs.version }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🐳 Docker | [\`${{ env.IMAGE_NAME }}:${{ needs.release.outputs.version }}\`](https://hub.docker.com/r/jruvalcabafsd/byteberry-frontend) |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏗️ Platforms | linux/amd64, linux/arm64 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔄 Branch Sync | ✅ develop synchronized |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📄 Changelog | [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 📋 Ready for merge?" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Docker images are available for pull" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ GitHub release created with changelog" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Raspberry Pi 5 (ARM64) support ready" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Develop branch synchronized with release" >> $GITHUB_STEP_SUMMARY
 
-          if [[ "${{ needs.quality.result }}" == "success" && "${{ needs.build.result }}" == "success" && "${{ needs.test.result }}" == "success" && "${{ needs.security.result }}" == "success" ]]; then
-            echo "🎉 **All critical checks passed!** This PR is ready for review and merge." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Some checks failed.** Please fix the issues before merging:" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            [[ "${{ needs.quality.result }}" != "success" ]] && echo "- ❌ Code quality issues need to be resolved" >> $GITHUB_STEP_SUMMARY
-            [[ "${{ needs.build.result }}" != "success" ]] && echo "- ❌ Build is failing" >> $GITHUB_STEP_SUMMARY
-            [[ "${{ needs.test.result }}" != "success" ]] && echo "- ❌ Tests are failing" >> $GITHUB_STEP_SUMMARY
-            [[ "${{ needs.security.result }}" != "success" ]] && echo "- ❌ Security vulnerabilities detected" >> $GITHUB_STEP_SUMMARY
-          fi
-
-      - name: ✅ All checks passed
-        if: needs.quality.result == 'success' && needs.build.result == 'success' && needs.test.result == 'success' && needs.security.result == 'success'
-        run: echo "🎉 All critical checks passed! PR ready for merge."
-
-      - name: ❌ Some checks failed
-        if: needs.quality.result == 'failure' || needs.build.result == 'failure' || needs.test.result == 'failure' || needs.security.result == 'failure'
+      - name: 🎉 Success notification
         run: |
-          echo "❌ Critical checks failed:"
-          echo "  Quality: ${{ needs.quality.result }}"
-          echo "  Build: ${{ needs.build.result }}"
-          echo "  Test: ${{ needs.test.result }}"
-          echo "  Security: ${{ needs.security.result }}"
+          echo "🎉 Release v${{ needs.release.outputs.version }} completed successfully!"
+          echo "📦 Docker: ${{ env.IMAGE_NAME }}:${{ needs.release.outputs.version }}"
+          echo "🏷️ GitHub: https://github.com/${{ github.repository }}/releases/tag/v${{ needs.release.outputs.version }}"
+          echo "🔄 Branches: main and develop synchronized at v${{ needs.release.outputs.version }}"
+
+  on-failure:
+    name: ❌ Release Failed
+    runs-on: ubuntu-latest
+    needs: [setup-and-validate, release, docker, sync-develop]
+    if: always() && (needs.setup-and-validate.result == 'failure' || needs.release.result == 'failure' || needs.docker.result == 'failure' || needs.sync-develop.result == 'failure')
+
+    steps:
+      - name: 📊 Failure summary
+        run: |
+          echo "# ❌ Release Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Validation | ${{ needs.setup-and-validate.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release | ${{ needs.release.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker | ${{ needs.docker.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Sync Develop | ${{ needs.sync-develop.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔍 Check the failed job logs for details." >> $GITHUB_STEP_SUMMARY
+
+      - name: ❌ Notify failure
+        run: |
+          echo "❌ Release pipeline failed"
+          echo "Validation: ${{ needs.setup-and-validate.result }}"
+          echo "Release: ${{ needs.release.result }}"
+          echo "Docker: ${{ needs.docker.result }}"
+          echo "Sync Develop: ${{ needs.sync-develop.result }}"
           exit 1
