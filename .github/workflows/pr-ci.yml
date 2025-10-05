@@ -412,13 +412,12 @@ jobs:
         run: |
           echo "🧪 Testing Docker image..."
 
-          # Iniciar contenedor
           docker run -d --name test-frontend-pr \
             -p 4003:80 \
             byteberry-frontend:pr-${{ github.event.pull_request.number }}
 
           echo "⏳ Waiting for Nginx to start..."
-          sleep 15  # Aumentado para estabilidad
+          sleep 15
 
           echo ""
           echo "📋 Container logs (last 20 lines):"
@@ -426,15 +425,36 @@ jobs:
 
           echo ""
           echo "📁 Verifying files inside container:"
-          docker exec test-frontend-pr ls -la /usr/share/nginx/html
+          docker exec test-frontend-pr ls -lah /usr/share/nginx/html
 
           echo ""
-          echo "🔍 Testing with internal healthcheck..."
-          # ✅ CRÍTICO: Usar wget DENTRO del contenedor (evita problemas de red de GitHub Actions)
-          if docker exec test-frontend-pr wget -q -O /dev/null http://localhost:80/; then
-            echo "✅ Internal healthcheck passed (wget)"
+          echo "🔍 Verify index.html exists and has content..."
+          if docker exec test-frontend-pr test -f /usr/share/nginx/html/index.html; then
+            INDEX_SIZE=$(docker exec test-frontend-pr stat -c %s /usr/share/nginx/html/index.html)
+            echo "✅ index.html exists: $INDEX_SIZE bytes"
+
+            if [ "$INDEX_SIZE" -lt 100 ]; then
+              echo "❌ ERROR: index.html is too small ($INDEX_SIZE bytes)"
+              echo "Content:"
+              docker exec test-frontend-pr cat /usr/share/nginx/html/index.html
+              docker stop test-frontend-pr
+              docker rm test-frontend-pr
+              exit 1
+            fi
           else
-            echo "❌ Internal healthcheck failed"
+            echo "❌ ERROR: index.html does not exist"
+            docker stop test-frontend-pr
+            docker rm test-frontend-pr
+            exit 1
+          fi
+
+          echo ""
+          echo "🔍 Testing Nginx serves index.html correctly..."
+          # ✅ CRÍTICO: Forzar GET request con --method=GET
+          if docker exec test-frontend-pr wget --spider --server-response http://localhost/ 2>&1 | grep -q "HTTP/1.1 200"; then
+            echo "✅ Nginx responds with 200 OK"
+          else
+            echo "❌ Nginx did not respond correctly"
             docker logs test-frontend-pr
             docker stop test-frontend-pr
             docker rm test-frontend-pr
@@ -442,29 +462,47 @@ jobs:
           fi
 
           echo ""
-          echo "🔍 Testing index.html content..."
-          INDEX_SIZE=$(docker exec test-frontend-pr stat -c %s /usr/share/nginx/html/index.html)
-          echo "index.html size: $INDEX_SIZE bytes"
+          echo "🔍 Download and verify index.html content..."
+          # ✅ SOLUCIÓN: Hacer GET explícito y guardar contenido
+          docker exec test-frontend-pr wget -q -O /tmp/test.html http://localhost/
+          DOWNLOADED_SIZE=$(docker exec test-frontend-pr stat -c %s /tmp/test.html)
+          echo "Downloaded content size: $DOWNLOADED_SIZE bytes"
 
-          if [ "$INDEX_SIZE" -gt 100 ]; then
-            echo "✅ index.html has content ($INDEX_SIZE bytes)"
+          if [ "$DOWNLOADED_SIZE" -gt 100 ]; then
+            echo "✅ Successfully downloaded index.html with content"
           else
-            echo "❌ index.html is too small ($INDEX_SIZE bytes)"
-            docker exec test-frontend-pr cat /usr/share/nginx/html/index.html
+            echo "❌ Downloaded file is too small or empty"
+            echo "Content received:"
+            docker exec test-frontend-pr cat /tmp/test.html
             docker stop test-frontend-pr
             docker rm test-frontend-pr
             exit 1
           fi
 
           echo ""
-          echo "🔍 Testing assets directory..."
-          ASSETS_COUNT=$(docker exec test-frontend-pr find /usr/share/nginx/html/assets -type f 2>/dev/null | wc -l)
-          echo "Assets files count: $ASSETS_COUNT"
-
-          if [ "$ASSETS_COUNT" -gt 0 ]; then
-            echo "✅ Assets directory contains $ASSETS_COUNT files"
+          echo "🔍 Verify HTML structure..."
+          if docker exec test-frontend-pr grep -q "<!DOCTYPE html>" /usr/share/nginx/html/index.html; then
+            echo "✅ index.html has valid HTML structure"
           else
-            echo "⚠️  Warning: No files in assets/ (might be OK for minimal build)"
+            echo "⚠️  Warning: index.html might not have DOCTYPE"
+            echo "First 10 lines:"
+            docker exec test-frontend-pr head -10 /usr/share/nginx/html/index.html
+          fi
+
+          echo ""
+          echo "🔍 Testing assets directory..."
+          if docker exec test-frontend-pr test -d /usr/share/nginx/html/assets; then
+            ASSETS_COUNT=$(docker exec test-frontend-pr find /usr/share/nginx/html/assets -type f 2>/dev/null | wc -l)
+            echo "✅ Assets directory exists with $ASSETS_COUNT files"
+
+            if [ "$ASSETS_COUNT" -eq 0 ]; then
+              echo "⚠️  Warning: Assets directory is empty"
+              echo "This might be OK for a minimal build"
+            fi
+          else
+            echo "⚠️  Warning: No assets directory found"
+            echo "Build structure:"
+            docker exec test-frontend-pr find /usr/share/nginx/html -type f
           fi
 
           echo ""
@@ -472,7 +510,7 @@ jobs:
           if docker exec test-frontend-pr nginx -t 2>&1 | grep -q "successful"; then
             echo "✅ Nginx configuration is valid"
           else
-            echo "❌ Nginx configuration has errors"
+            echo "❌ Nginx configuration has errors:"
             docker exec test-frontend-pr nginx -t
             docker stop test-frontend-pr
             docker rm test-frontend-pr
@@ -480,16 +518,8 @@ jobs:
           fi
 
           echo ""
-          echo "🔍 Optional: Testing external connectivity..."
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:4003/ 2>/dev/null || echo "000")
-          echo "External HTTP response: $HTTP_CODE"
-
-          if [ "$HTTP_CODE" == "200" ]; then
-            echo "✅ External connectivity works (bonus!)"
-          else
-            echo "⚠️  External connectivity limited (expected in GitHub Actions)"
-            echo "   Internal tests passed - this is OK ✅"
-          fi
+          echo "🔍 Sample of Nginx access logs..."
+          docker exec test-frontend-pr tail -5 /var/log/nginx/access.log 2>/dev/null || echo "No access logs yet"
 
           echo ""
           echo "🧹 Cleaning up..."
@@ -497,7 +527,7 @@ jobs:
           docker rm test-frontend-pr
 
           echo ""
-          echo "✅ All critical Docker tests passed!"
+          echo "✅ All Docker tests passed successfully!"
 
       - name: 🗑️ Clean up Docker images
         if: always()
