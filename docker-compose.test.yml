@@ -1,0 +1,20 @@
+version: '3.9'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_BFF_URL: http://localhost:4002
+        VITE_NODE_ENV: production
+    container_name: byteberry-frontend-test
+    ports:
+      - '4003:4003'
+    healthcheck:
+      test: ['CMD', '/usr/local/bin/healthcheck.sh']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
