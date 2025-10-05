@@ -111,6 +111,6 @@ export class ServiceAlreadyRegisteredError extends ContainerError {
   constructor(token: symbol) {
     super(`Service already registered in container: ${String(token)}`, token);
     this.name = this.constructor.name;
-    Object.setPrototypeOf(this, ServiceNotFoundError.prototype);
+    Object.setPrototypeOf(this, ServiceAlreadyRegisteredError.prototype);
   }
 }

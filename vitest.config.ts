@@ -3,12 +3,16 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
+  root: __dirname,
   plugins: [react()],
   test: {
     globals: true,
     environment: 'jsdom',
+    name: 'frontend',
     setupFiles: ['./test/setup.ts'],
     css: true,
+    include: ['src/**/*.{test,spec}.{ts,tsx,js,jsx}', 'test/**/*.{test,spec}.{ts,tsx,js,jsx}'],
+    exclude: ['node_modules/', '**/*.d.ts', '**/*.config.*', '**/mockData', 'dist/'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
