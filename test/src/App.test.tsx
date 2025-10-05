@@ -1,30 +1,19 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { render, screen, waitFor } from '@testing-library/react';
 import { ContainerProvider } from '../../src/presentation';
 import { createTestContainer } from '../test-utils';
 import { TOKENS } from '../../src/container';
 import type { IGetHealthUseCase } from '../../src/interfaces';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { Home, HealthDashboard } from '../../src/presentation';
-
-const AppRoutes = () => (
-  <Routes>
-    <Route path="/" element={<Home />} />
-    <Route path="/health-ui" element={<HealthDashboard />} />
-    <Route path="*" element={<Navigate to="/" replace />} />
-  </Routes>
-);
+import App from '../../src/App';
 
 describe('App Component', () => {
   it('should render Home page by default', () => {
     const container = createTestContainer();
 
+    // Renderizar el componente App directamente (ya tiene BrowserRouter interno)
     render(
       <ContainerProvider container={container}>
-        <MemoryRouter initialEntries={['/']}>
-          <AppRoutes />
-        </MemoryRouter>
+        <App />
       </ContainerProvider>
     );
 
@@ -32,7 +21,7 @@ describe('App Component', () => {
     expect(screen.getByText('Sistema de Gestión de Gastos')).toBeInTheDocument();
   });
 
-  it('should render HealthDashboard when navigating to /health-ui', () => {
+  it('should render HealthDashboard when navigating to /health-ui', async () => {
     const mockExecute = vi.fn().mockImplementation(
       () => new Promise(() => {}) // Never resolves - loading state
     );
@@ -41,29 +30,34 @@ describe('App Component', () => {
     const container = createTestContainer();
     container.register(TOKENS.GetHealthUseCase, () => mockUseCase);
 
+    // Configurar la ruta inicial
+    window.history.pushState({}, 'Test page', '/health-ui');
+
     render(
       <ContainerProvider container={container}>
-        <MemoryRouter initialEntries={['/health-ui']}>
-          <AppRoutes />
-        </MemoryRouter>
+        <App />
       </ContainerProvider>
     );
 
-    // Should show loading state initially
-    expect(screen.getByText('Loading health status...')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Loading health status...')).toBeInTheDocument();
+    });
   });
 
-  it('should redirect to home for unknown routes', () => {
+  it('should redirect to home for unknown routes', async () => {
     const container = createTestContainer();
+
+    // Configurar ruta desconocida
+    window.history.pushState({}, 'Test page', '/unknown-route');
 
     render(
       <ContainerProvider container={container}>
-        <MemoryRouter initialEntries={['/unknown-route']}>
-          <AppRoutes />
-        </MemoryRouter>
+        <App />
       </ContainerProvider>
     );
 
-    expect(screen.getByText('ByteBerry Frontend')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('ByteBerry Frontend')).toBeInTheDocument();
+    });
   });
 });
