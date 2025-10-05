@@ -31,14 +31,12 @@ ENV VITE_NODE_ENV=${VITE_NODE_ENV}
 
 # Build application (environment variables are embedded here)
 RUN pnpm build
-RUN ls -la /app/dist
 
 # ==============================================================================
 # Stage 2: Runtime
 # Serve the built application with nginx
 # ==============================================================================
 FROM nginx:alpine AS runtime
-COPY dist /usr/share/nginx/html
 
 # Install wget for healthcheck
 RUN apk add --no-cache wget
