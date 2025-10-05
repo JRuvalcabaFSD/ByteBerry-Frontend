@@ -321,6 +321,8 @@ jobs:
           echo "📋 Container logs (last 10 lines):"
           docker logs --tail 10 test-frontend-pr
 
+          docker exec test-frontend-pr ls -la /usr/share/nginx/html
+
           echo "🔍 Testing static files..."
           HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:4003/)
           echo "HTTP response code: $HTTP_CODE"

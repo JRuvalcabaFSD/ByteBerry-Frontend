@@ -31,6 +31,7 @@ ENV VITE_NODE_ENV=${VITE_NODE_ENV}
 
 # Build application (environment variables are embedded here)
 RUN pnpm build
+RUN ls -la /app/dist
 
 # ==============================================================================
 # Stage 2: Runtime
@@ -73,3 +74,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]
+RUN ls -la /usr/share/nginx/html
