@@ -13,6 +13,8 @@ env:
   PNPM_VERSION: '10.17.1'
   REGISTRY: docker.io
   IMAGE_NAME: jruvalcabafsd/byteberry-frontend
+  # Default BFF URL para CI/CD (sobrescribible con secrets)
+  VITE_BFF_URL: ${{ secrets.VITE_BFF_URL || 'http://localhost:4002' }}
 
 permissions:
   contents: write
@@ -58,10 +60,12 @@ jobs:
           key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: 🔍 Run full validation
+        env:
+          NODE_ENV: test
+          CI: true
+          VITE_BFF_URL: ${{ env.VITE_BFF_URL }}
         run: |
-          export NODE_ENV=test
-          export CI=true
-          export VITE_BFF_URL="${{ secrets.VITE_BFF_URL_CI }}"
+          echo "Using BFF URL: $VITE_BFF_URL"
           pnpm type-check
           pnpm lint
           pnpm audit
@@ -246,6 +250,7 @@ jobs:
             VERSION=${{ steps.vars.outputs.version }}
             BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
             COMMIT_SHA=${{ github.sha }}
+            VITE_BFF_URL=${{ env.VITE_BFF_URL }}
 
       - name: 🧪 Test multi-arch images
         run: |
