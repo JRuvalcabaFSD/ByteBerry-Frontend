@@ -38,6 +38,7 @@ RUN ls -la /app/dist
 # Serve the built application with nginx
 # ==============================================================================
 FROM nginx:alpine AS runtime
+COPY dist /usr/share/nginx/html
 
 # Install wget for healthcheck
 RUN apk add --no-cache wget
