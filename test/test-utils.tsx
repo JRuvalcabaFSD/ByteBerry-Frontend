@@ -25,7 +25,10 @@ interface CustomRenderOptions extends Omit<RenderOptions, 'wrapper'> {
   initialRoute?: string;
 }
 
-export function renderWithProviders(ui: ReactElement, { testContainer = createTestContainer(), initialRoute = '/', ...renderOptions }: CustomRenderOptions = {}) {
+export function renderWithProviders(
+  ui: ReactElement,
+  { testContainer = createTestContainer(), initialRoute = '/', ...renderOptions }: CustomRenderOptions = {}
+) {
   if (initialRoute !== '/') {
     window.history.pushState({}, 'Test page', initialRoute);
   }
