@@ -38,7 +38,7 @@ COPY --from=builder --chown=frontend:frontend /app/dist /usr/share/nginx/html
 COPY --chown=frontend:frontend nginx.conf /etc/nginx/nginx.conf
 
 # Copy healthcheck script
-COPY --chown=frontend:frontend healthcheck.sh /healthcheck.sh
+COPY --chown=frontend:frontend ./scripts/healthcheck.sh /healthcheck.sh
 RUN chmod +x /healthcheck.sh
 
 # Expose port
