@@ -261,20 +261,13 @@ jobs:
             -p 8080:80 -d --name frontend-test-amd64 \
             ${{ steps.vars.outputs.image-tag }}
 
-          # Espera y verifica si el contenedor está corriendo
           sleep 5
-          docker ps -a
-          if ! docker ps --filter "name=frontend-test-amd64" --filter "status=running" | grep frontend-test-amd64; then
-            echo "❌ El contenedor frontend-test-amd64 no se inició correctamente"
-            docker logs frontend-test-amd64 || true
-            exit 1
-          fi
 
-          docker exec frontend-test-amd64 nginx -t && echo "✅ Configuración de Nginx AMD64 válida"
+          docker exec frontend-test-amd64 nginx -t && echo "✅ AMD64 Nginx config valid"
           docker stop frontend-test-amd64
 
-          echo "Probando disponibilidad de la imagen ARM64..."
-          docker manifest inspect ${{ steps.vars.outputs.image-tag }} | grep "arm64" && echo "✅ Imagen ARM64 disponible"
+          echo "Testing ARM64 image availability..."
+          docker manifest inspect ${{ steps.vars.outputs.image-tag }} | grep "arm64" && echo "✅ ARM64 image available"
 
       - name: 📊 Image summary
         run: |
