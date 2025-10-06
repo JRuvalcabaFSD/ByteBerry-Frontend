@@ -5,6 +5,13 @@ All notable changes to ByteBerry Frontend will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/compare/v1.2.1...v1.2.2) (2025-10-06)
+
+
+### 🐛 Bug Fixes
+
+* **release:** add container status check for frontend-test ([8ea0a9f](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/commit/8ea0a9fdc4d735f37e92ec68357d5f0c01b13b0e))
+
 ## [1.2.1](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/compare/v1.2.0...v1.2.1) (2025-10-06)
 
 
