@@ -4,8 +4,8 @@
 
 set -e
 
-# Check if nginx is responding
-if wget --quiet --tries=1 --spider http://localhost:4003/ ; then
+# Check if nginx is responding on internal port 80
+if wget --quiet --tries=1 --spider http://localhost/ ; then
   echo "Health check passed: nginx is responding"
   exit 0
 else
