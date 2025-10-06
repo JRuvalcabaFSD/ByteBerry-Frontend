@@ -39,7 +39,7 @@ export class BffClient implements IBffClient {
    */
 
   public async fetchHealth(): Promise<IHealthResponse> {
-    const url = `${this.baseUrl}/health`;
+    const url = `${this.baseUrl}/api/health`;
 
     try {
       const response = await fetch(url, {
@@ -60,7 +60,11 @@ export class BffClient implements IBffClient {
         throw error;
       }
 
-      throw new FetchError(`Network error while fetching health: ${error instanceof Error ? error.message : 'Unknown error'}`, undefined, url);
+      throw new FetchError(
+        `Network error while fetching health: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        undefined,
+        url
+      );
     }
   }
 }
