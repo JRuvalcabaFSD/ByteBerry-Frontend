@@ -5,6 +5,13 @@ All notable changes to ByteBerry Frontend will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/compare/v1.1.2...v1.2.0) (2025-10-06)
+
+
+### ✨ Features
+
+* **healthCheck:** restore health check script for Docker ([8669930](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/commit/86699308ae8e9fa698ea172fa3b74f6c93438885))
+
 ## [1.1.2](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/compare/v1.1.1...v1.1.2) (2025-10-06)
 
 
