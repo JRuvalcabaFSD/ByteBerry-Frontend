@@ -14,7 +14,7 @@ env:
   PNPM_VERSION: '10.17.1'
   REGISTRY: docker.io
   IMAGE_NAME: jruvalcabafsd/byteberry-frontend
-  VITE_BFF_URL: ${{ secrets.VITE_BFF_URL || 'http://localhost:4002' }}
+  VITE_BFF_URL: ${{ secrets.VITE_BFF_URL || 'http://localhost' }}
 
 jobs:
   setup-and-validate:
