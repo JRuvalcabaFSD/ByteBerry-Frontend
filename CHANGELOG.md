@@ -5,6 +5,16 @@ All notable changes to ByteBerry Frontend will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.3.0 (2025-10-07)
+
+* Merge pull request #20 from JRuvalcabaFSD/develop ([2827152](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/commit/2827152)), closes [#20](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/issues/20)
+* Merge pull request #21 from JRuvalcabaFSD/develop ([a5a2d5b](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/commit/a5a2d5b)), closes [#21](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/issues/21)
+* Merge pull request #22 from JRuvalcabaFSD/develop ([75cec0c](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/commit/75cec0c)), closes [#22](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/issues/22)
+* fix(api): update health check endpoint URL ([8231d8b](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/commit/8231d8b))
+* fix(release): update VITE_BFF_URL default value ([2ef7d0a](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/commit/2ef7d0a))
+* feat(release): refactor release workflow for clarity and efficiency ([5bca8d8](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/commit/5bca8d8))
+* style(test): format function parameters for readability ([51a9d71](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/commit/51a9d71))
+
 ## [1.2.3](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/compare/v1.2.2...v1.2.3) (2025-10-06)
 
 
