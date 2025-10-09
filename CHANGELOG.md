@@ -5,6 +5,11 @@ All notable changes to ByteBerry Frontend will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## <small>1.3.1 (2025-10-09)</small>
+
+* Merge pull request #23 from JRuvalcabaFSD/develop ([18ad4ee](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/commit/18ad4ee)), closes [#23](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/issues/23)
+* fix(env): remove VITE_BFF_URL and update config ([34e5a5f](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/commit/34e5a5f))
+
 ## 1.3.0 (2025-10-07)
 
 * Merge pull request #20 from JRuvalcabaFSD/develop ([2827152](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/commit/2827152)), closes [#20](https://github.com/JRuvalcabaFSD/ByteBerry-Frontend/issues/20)
