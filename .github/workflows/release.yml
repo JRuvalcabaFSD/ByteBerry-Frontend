@@ -176,7 +176,6 @@ jobs:
             VERSION=${{ steps.vars.outputs.version }}
             BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
             COMMIT_SHA=${{ github.sha }}
-            VITE_BFF_URL=${{ env.VITE_BFF_URL }}
           tags: |
             ${{ steps.vars.outputs.image-tag }}
             ${{ steps.vars.outputs.image-latest }}

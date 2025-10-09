@@ -47,6 +47,7 @@ export class BffClient implements IBffClient {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'same-origin',
       });
 
       if (!response.ok) {

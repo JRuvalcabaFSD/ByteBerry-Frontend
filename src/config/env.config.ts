@@ -31,7 +31,7 @@ export class Config implements IConfig {
    * @memberof Config
    */
   private constructor() {
-    this.bffUrl = this.validateUrl(import.meta.env.VITE_BFF_URL, 'VITE_BFF_URL');
+    this.bffUrl = '';
     this.nodeEnv = this.validateNodeEnv(import.meta.env.VITE_NODE_ENV || 'development');
     this.isDevelopment = this.nodeEnv === 'development';
     this.isProduction = this.nodeEnv === 'production';
@@ -48,26 +48,6 @@ export class Config implements IConfig {
   public static getConfig(): Config {
     if (!this.instance) this.instance = new Config();
     return this.instance;
-  }
-
-  /**
-   * Validates that the provided value is a valid URL string.
-   * Throws an error if the value is undefined or not a valid URL.
-   *
-   * @param value - The string to validate as a URL.
-   * @param name - The name of the environment variable being validated, used in error messages.
-   * @returns The validated URL string.
-   * @throws {Error} If the value is missing or not a valid URL.
-   */
-
-  private validateUrl(value: string | undefined, name: string): string {
-    if (!value) throw new Error(`Missing required environment variable: ${name}`);
-    try {
-      new URL(value);
-      return value;
-    } catch {
-      throw new Error(`Invalid URL for ${name}: ${value}`);
-    }
   }
 
   /**
