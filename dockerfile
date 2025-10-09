@@ -26,7 +26,6 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 # Set environment variables from build args
-ENV VITE_BFF_URL=${VITE_BFF_URL}
 ENV VITE_NODE_ENV=${VITE_NODE_ENV}
 
 # Build application (environment variables are embedded here)
